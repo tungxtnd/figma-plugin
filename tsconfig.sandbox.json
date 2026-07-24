@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2020"]
+  },
+  "include": ["src/code.ts", "src/core/**/*", "src/components/**/*", "src/engines/**/*", "src/layouts/**/*", "src/types.ts", "src/tokens.ts", "src/constraint-engine.ts"]
+}
