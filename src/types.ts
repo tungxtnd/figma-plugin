@@ -48,6 +48,7 @@ export interface BodyComponent {
 
 export interface ListComponent {
   type: 'list';
+  title?: string;
   style: 'checklist' | 'numbered';
   items: string[];
   size_level?: SizeLevel;       // Font size cho từng item (default: BodyM)
@@ -105,6 +106,29 @@ export interface DesignIntent {
   constraints?: string[];
 }
 
+export interface RenderConstraints {
+  safeMarginPx: number;
+  spacingPx: number;
+  cornerRadiusPx: number;
+  strokeWidthPx: number;
+  maxTitleLines: number;
+  maxBodyChars: number;
+}
+
+export interface KnowledgeLayoutConstraint extends RenderConstraints {
+  layout: LayoutPattern;
+  template: string;
+  pageType: 'cover' | 'content' | 'cta';
+  logoPosition: 'top-center' | 'bottom-center';
+}
+
+export interface ActiveKnowledgeBase {
+  version: string;
+  layouts: KnowledgeLayoutConstraint[];
+  tokens: Record<string, string | number>;
+  evidence: { observationCount: number; sourceDatasetHash?: string };
+}
+
 // ─── DesignJob: Job object truyền vào Plugin từ UI bridge ────────────────────
 
 export interface DesignJob {
@@ -122,8 +146,12 @@ export interface DesignJob {
     // Legacy v0 fields (backward compat)
     title?: string;
     body?: string;
+    logoPosition?: 'top-center' | 'bottom-center';
+    knowledgeVersion?: string;
+    renderConstraints?: RenderConstraints;
     [key: string]: unknown;
   };
+  knowledgeBase?: ActiveKnowledgeBase;
 }
 
 // ─── RenderResult: Plugin gửi ngược về Backend sau khi render ────────────────
@@ -143,10 +171,18 @@ export interface RenderResult {
   figmaNodeId?: string;
 }
 
+export interface AuthConfig {
+  backendUrl: string;
+  clientSecret: string;
+}
+
 // ─── Plugin Message Protocol ──────────────────────────────────────────────────
 
 export type PluginMessage =
   | { type: 'ui-ready' }
+  | { type: 'get-config' }
+  | { type: 'save-config'; config: AuthConfig }
+  | { type: 'config-loaded'; config: AuthConfig }
   | { type: 'start-processing'; backendUrl: string }
   | {
       type: 'process-job';
@@ -164,7 +200,7 @@ export type PluginMessage =
       rawFingerprint?: string;      // Passed to UI thread to SparkMD5 hash
     }
   | { type: 'job-failed'; assetId: string; error: string }
-  | { type: 'log'; message: string; status: 'info' | 'success' | 'error' }
+  | { type: 'log'; message: string; status: 'info' | 'success' | 'error' | 'warning' }
   // Phase 9: Sync Manager Messages
   | { type: 'scan-canvas'; postId: string }
   | { type: 'canvas-scanned'; slides: SyncSlide[] }

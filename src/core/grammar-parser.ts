@@ -97,7 +97,10 @@ export function parseGrammar(content: Component[]): ParsedGrammar {
  *
  * Ref: doc 05-render-pipeline.md Step 2
  */
-export function normalizeGrammar(parsed: ParsedGrammar): ParsedGrammar {
+export function normalizeGrammar(
+  parsed: ParsedGrammar,
+  layout?: LayoutPattern,
+): ParsedGrammar {
   const result = { ...parsed };
 
   // Gộp body nếu quá nhiều
@@ -112,9 +115,12 @@ export function normalizeGrammar(parsed: ParsedGrammar): ParsedGrammar {
     result.bodies = merged;
   }
 
-  // Chỉ giữ 1 list
+  // Comparison grid needs two independent lists (one per column). Other layouts
+  // retain the original single-list limit to avoid accidental dense slides.
   if (result.lists.length > 1) {
-    result.lists = [result.lists[0]];
+    result.lists = layout === 'grid'
+      ? result.lists.slice(0, 2)
+      : [result.lists[0]];
   }
 
   // Chỉ giữ tối đa 2 statistic blocks (Grammar Spec §1.4: "vẽ cạnh nhau")
@@ -174,6 +180,6 @@ export function capabilityFilter(parsed: ParsedGrammar, layout: LayoutPattern): 
  */
 export function processGrammar(content: Component[], layout: LayoutPattern): ParsedGrammar {
   const parsed = parseGrammar(content);
-  const normalized = normalizeGrammar(parsed);
+  const normalized = normalizeGrammar(parsed, layout);
   return capabilityFilter(normalized, layout);
 }

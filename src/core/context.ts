@@ -5,7 +5,7 @@
  * Ref: design_engine_execution_specification.md §1 (Pipeline)
  */
 
-import { DesignIntent, Component, HeadingComponent, BodyComponent, ListComponent, StatisticComponent, QuoteComponent, BadgeComponent } from '../types';
+import { DesignIntent, Component, HeadingComponent, BodyComponent, ListComponent, StatisticComponent, QuoteComponent, BadgeComponent, RenderConstraints } from '../types';
 import { ThemeTokenSet } from '../engines/theme-engine';
 
 // ─── Asset Types ──────────────────────────────────────────────────────────────
@@ -37,6 +37,7 @@ export interface LayoutContext {
     images: ImageAsset[];    // Ảnh nội dung (hero, illustration)
   };
   logoPosition?: 'top-center' | 'bottom-center';
+  renderConstraints?: RenderConstraints;
 }
 
 // ─── Layout Renderer Type ─────────────────────────────────────────────────────

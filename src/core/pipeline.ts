@@ -5,7 +5,7 @@
  * Ref: design_engine_execution_specification.md §1 (Pipeline Thực Thi)
  */
 
-import { DesignJob, RenderResult, DesignIntent, WarningCode, Component } from '../types';
+import { DesignJob, RenderResult, DesignIntent, WarningCode, Component, RenderConstraints } from '../types';
 import { LayoutContext, ImageAsset } from './context';
 import { resolveTheme } from '../engines/theme-engine';
 import { preflightCheck, sanitizeContentBlock, ConstraintViolation } from '../constraint-engine';
@@ -21,6 +21,39 @@ export interface PipelineResult {
   slideNode: FrameNode;
   renderResult: RenderResult;
   variantUsed: string;  // Cho slide tiếp theo biết variant nào vừa được dùng
+}
+
+export function resolveRenderConstraints(job: DesignJob): RenderConstraints {
+  const payload = job.renderedPayload;
+  const knowledge = job.knowledgeBase;
+  const versionMatches = !payload.knowledgeVersion || payload.knowledgeVersion === knowledge?.version;
+  const fromKnowledge = versionMatches
+    ? knowledge?.layouts.find((item) => item.pageType === payload.pageType && item.layout === payload.designIntent?.layout_pattern)
+    : undefined;
+  return payload.renderConstraints || fromKnowledge || {
+    safeMarginPx: 120,
+    spacingPx: 32,
+    cornerRadiusPx: 20,
+    strokeWidthPx: 4,
+    maxTitleLines: 3,
+    maxBodyChars: 400,
+  };
+}
+
+export function scaleTemplatePx(value: number): number {
+  return Math.round((value * CANVAS.Size) / 1500);
+}
+
+function applyRenderConstraints(node: SceneNode, constraints: RenderConstraints): void {
+  if ('cornerRadius' in node && (node as any).cornerRadius === CANVAS.BorderRadius) {
+    (node as any).cornerRadius = scaleTemplatePx(constraints.cornerRadiusPx);
+  }
+  if ('strokes' in node && (node as any).strokes?.length > 0) {
+    (node as any).strokeWeight = scaleTemplatePx(constraints.strokeWidthPx);
+  }
+  if ('children' in node) {
+    for (const child of (node as ChildrenMixin).children) applyRenderConstraints(child, constraints);
+  }
 }
 
 /** Mapping các lỗi của Constraint Engine sang WarningCode thô */
@@ -92,9 +125,11 @@ export async function runRenderingPipeline(
   // ── Step 2: Build Layout Context ───────────────────────────────────────────
   const theme = resolveTheme(intent.theme);
   
+  const renderConstraints = resolveRenderConstraints(job);
   const canvasW = CANVAS.Size;
   const canvasH = CANVAS.Size;
-  const padding = CANVAS.Padding;
+  const padding = scaleTemplatePx(renderConstraints.safeMarginPx);
+  const spacing = scaleTemplatePx(renderConstraints.spacingPx);
   
   const logoPosition = job.renderedPayload?.logoPosition || 'top-center';
   const safeZoneTop = logoPosition === 'top-center' ? (padding + 60) : padding;
@@ -117,7 +152,8 @@ export async function runRenderingPipeline(
       logo: logoBytes,
       images: images
     },
-    logoPosition: logoPosition as any
+    logoPosition: logoPosition as any,
+    renderConstraints,
   };
 
   // ── Step 3: Initialize Frame & Chrome elements ─────────────────────────────
@@ -144,7 +180,7 @@ export async function runRenderingPipeline(
   slide.paddingBottom = padding;
   slide.paddingLeft = padding;
   slide.paddingRight = padding;
-  slide.itemSpacing = CANVAS.Spacing;
+  slide.itemSpacing = spacing;
 
   // Thêm ambient glow orbs đằng sau
   addAmbientOrbs(slide, context);
@@ -193,6 +229,7 @@ export async function runRenderingPipeline(
   let renderMeta: any;
   try {
     renderMeta = await renderer(slide, context, chosenVariant);
+    applyRenderConstraints(slide, renderConstraints);
 
     // Thêm Logo ở dưới cùng nếu vị trí được cấu hình ở bottom-center
     if (logoPosition === 'bottom-center') {

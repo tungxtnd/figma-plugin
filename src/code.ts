@@ -92,6 +92,39 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     return;
   }
 
+  if (msg.type === 'get-config') {
+    try {
+      const savedUrl = await figma.clientStorage.getAsync('FIGMA_M2M_BACKEND_URL');
+      const savedSecret = await figma.clientStorage.getAsync('FIGMA_M2M_CLIENT_SECRET');
+      sendToUi({
+        type: 'config-loaded',
+        config: {
+          backendUrl: savedUrl || 'http://localhost:3000/api',
+          clientSecret: savedSecret || '',
+        }
+      });
+    } catch (e) {
+      sendToUi({
+        type: 'config-loaded',
+        config: { backendUrl: 'http://localhost:3000/api', clientSecret: '' }
+      });
+    }
+    return;
+  }
+
+  if (msg.type === 'save-config') {
+    try {
+      const { config } = msg;
+      await figma.clientStorage.setAsync('FIGMA_M2M_BACKEND_URL', config.backendUrl || 'http://localhost:3000/api');
+      await figma.clientStorage.setAsync('FIGMA_M2M_CLIENT_SECRET', config.clientSecret || '');
+      sendToUi({ type: 'log', message: '✅ Settings saved to Figma clientStorage.', status: 'success' });
+      sendToUi({ type: 'config-loaded', config });
+    } catch (e) {
+      sendToUi({ type: 'log', message: `Failed to save settings: ${(e as Error).message}`, status: 'error' });
+    }
+    return;
+  }
+
   if (msg.type === 'process-job') {
     const { job, images, bgBytes, logoBytes } = msg as any;
     console.log('[SANDBOX PAYLOAD]',
@@ -103,6 +136,22 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     if (!designIntent || designIntent.version !== '1.0') {
       sendToUi({ type: 'log', message: `[Pipeline] Missing/legacy designIntent for slide ${orderIndex + 1}. Synthesizing fallback...`, status: 'info' });
       designIntent = synthesizeDesignIntent(renderedPayload);
+    }
+
+    // Cleanup any existing frame on canvas that has the same assetId (idempotency cleanup to prevent duplicates)
+    if (job && job.assetId) {
+      const existingFrames = figma.currentPage.children.filter(n => n.type === 'FRAME') as FrameNode[];
+      for (const frame of existingFrames) {
+        const rawData = frame.getPluginData('figma_reconciliation_metadata');
+        if (rawData) {
+          try {
+            const meta = JSON.parse(rawData);
+            if (meta.assetId === job.assetId) {
+              frame.remove();
+            }
+          } catch (_) {}
+        }
+      }
     }
 
     // ── ROUTE TO V1.0 ENGINE ────────────────────────────────────────────────

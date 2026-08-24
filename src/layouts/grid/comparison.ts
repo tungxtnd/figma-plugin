@@ -62,6 +62,18 @@ export async function renderComparison(
       col.strokes = [{ type: 'SOLID', color: theme.textMuted, opacity: 0.15 }];
       col.strokeWeight = 1;
       row.appendChild(col);
+      if (list.title) {
+        await figma.loadFontAsync({ family: 'Inter', style: 'Bold' });
+        const listTitle = figma.createText();
+        listTitle.name = 'Comparison Column Title';
+        listTitle.fontName = { family: 'Inter', style: 'Bold' };
+        listTitle.fontSize = 24;
+        listTitle.characters = list.title;
+        listTitle.fills = [{ type: 'SOLID', color: theme.highlight }];
+        listTitle.layoutAlign = 'STRETCH';
+        listTitle.textAutoResize = 'HEIGHT';
+        col.appendChild(listTitle);
+      }
       await createListItems(col, context, list);
     }
   }
