@@ -110,36 +110,6 @@ export function scaleFontDown(current: SizeLevel): { result: SizeLevel; canScale
   return { result: BODY_SIZE_LEVELS[idx + 1], canScaleMore: idx + 1 < BODY_SIZE_LEVELS.length - 1 };
 }
 
-/**
- * Tìm size_level tối ưu cho Center Layout.
- * Trả về size_level đã điều chỉnh và flag shouldWarn nếu đã hạ xuống mức thấp nhất vẫn tràn.
- */
-export function resolveBodySizeForCenter(
-  context: LayoutContext,
-  headingText: string,
-  headingSizeLevel: SizeLevel,
-  bodyText: string,
-  initialBodySizeLevel: SizeLevel,
-): { bodySizeLevel: SizeLevel; shouldWarn: boolean } {
-  const maxH = context.safeZone.height;
-  const maxW = LAYOUT.Center.MaxContentWidth;
-  const titleBodyGap = LAYOUT.Center.TitleBodyGap;
-
-  let currentSize = initialBodySizeLevel;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const hH = estimateTextHeight(headingText, headingSizeLevel, maxW);
-    const bH = estimateTextHeight(bodyText, currentSize, maxW);
-    if (hH + bH + titleBodyGap <= maxH) {
-      return { bodySizeLevel: currentSize, shouldWarn: false };
-    }
-    const scaled = scaleFontDown(currentSize);
-    currentSize = scaled.result;
-    if (!scaled.canScaleMore) break;
-  }
-  // Đã hạ hết bậc mà vẫn tràn
-  return { bodySizeLevel: currentSize, shouldWarn: true };
-}
-
 // ─── Heading Scale Down & Optimal Size Resolvers ──────────────────────────────
 
 /**
@@ -199,14 +169,14 @@ export function resolveOptimalFontSizes(
     }
 
     // Ưu tiên hạ body size trước
-    const bodyIdx = BODY_SIZE_LEVELS.indexOf(currentBodySize as any);
-    if (bodyIdx >= 0 && bodyIdx < BODY_SIZE_LEVELS.length - 1) {
-      currentBodySize = BODY_SIZE_LEVELS[bodyIdx + 1];
+    const scaledBody = scaleFontDown(currentBodySize);
+    if (scaledBody.result !== currentBodySize) {
+      currentBodySize = scaledBody.result;
     } else {
       // Body đã ở mức nhỏ nhất (BodyS) hoặc không có, bắt đầu hạ heading
-      const headingIdx = HEADING_SIZE_LEVELS.indexOf(currentHeadingSize as any);
-      if (headingIdx >= 0 && headingIdx < HEADING_SIZE_LEVELS.length - 1) {
-        currentHeadingSize = HEADING_SIZE_LEVELS[headingIdx + 1];
+      const scaledHeading = scaleHeadingDown(currentHeadingSize);
+      if (scaledHeading.result !== currentHeadingSize) {
+        currentHeadingSize = scaledHeading.result;
       } else {
         // Cả hai đã ở mức tối thiểu mà vẫn tràn
         warned = true;

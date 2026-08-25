@@ -3,8 +3,7 @@ import { renderStandard } from './standard';
 import { renderHero } from './hero';
 import { renderStatistic } from './statistic';
 import { renderQuote } from './quote';
-import { renderMinimal } from './minimal';
-import { renderCover } from './cover';
+import { renderMinimal, renderCover } from './cover';
 
 export type CenterVariantRenderer = (
   parent: FrameNode,

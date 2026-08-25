@@ -1,7 +1,6 @@
 import { LayoutContext } from '../../core/context';
 import { renderStandard } from './standard';
-import { renderColumns2 } from './columns2';
-import { renderColumns3 } from './columns3';
+import { renderColumns2, renderColumns3 } from './columns';
 import { renderCards } from './cards';
 import { renderPricing } from './pricing';
 import { renderComparison } from './comparison';

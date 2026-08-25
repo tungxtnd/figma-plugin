@@ -4,39 +4,39 @@ import { createListItems } from '../../components/body';
 import { createFooter } from '../../components/chrome';
 import { renderStatBlock } from './standard';
 
-export async function renderColumns2(
+async function renderColumnsN(
   parent: FrameNode,
   context: LayoutContext,
-  variant: string
+  columnCount: 2 | 3
 ): Promise<{ warned: boolean }> {
   const { intent } = context;
   const heading = getHeading(intent);
   const lists = getListComponents(intent);
   const statistics = getStatistics(intent);
-  let warned = false;
+  const warned = false;
 
   if (heading) {
     await createTitle(parent, context, heading);
   }
 
   const row = figma.createFrame();
-  row.name = 'Grid 2-Columns Row';
+  row.name = `Grid ${columnCount}-Columns Row`;
   row.layoutMode = 'HORIZONTAL';
   row.layoutAlign = 'STRETCH';
   row.layoutGrow = 1;
-  row.itemSpacing = 32;
+  row.itemSpacing = columnCount === 2 ? 32 : 24;
   row.fills = [];
   row.counterAxisAlignItems = 'CENTER';
   parent.appendChild(row);
 
   if (statistics.length > 0) {
-    const statsToDraw = statistics.slice(0, 2);
+    const statsToDraw = statistics.slice(0, columnCount);
     for (const stat of statsToDraw) {
       await renderStatBlock(row, context, stat);
     }
   } else {
-    // Chia danh sách items thành 2 cột
-    const listsToDraw = lists.slice(0, 2);
+    // Chia danh sách items thành columnCount cột
+    const listsToDraw = lists.slice(0, columnCount);
     for (const list of listsToDraw) {
       const col = figma.createFrame();
       col.name = 'List Column';
@@ -51,4 +51,20 @@ export async function renderColumns2(
 
   await createFooter(parent, context);
   return { warned };
+}
+
+export function renderColumns2(
+  parent: FrameNode,
+  context: LayoutContext,
+  _variant: string
+): Promise<{ warned: boolean }> {
+  return renderColumnsN(parent, context, 2);
+}
+
+export function renderColumns3(
+  parent: FrameNode,
+  context: LayoutContext,
+  _variant: string
+): Promise<{ warned: boolean }> {
+  return renderColumnsN(parent, context, 3);
 }
