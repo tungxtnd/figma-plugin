@@ -1,7 +1,8 @@
 export interface ApiClientConfig {
   baseUrl: string;
-  clientId: string;
-  clientSecret: string;
+  /** Bearer token khop voi file secrets/plugin-tokens/<personId>_current tren NestJS.
+   * Gui qua header x-plugin-token, xac thuc boi FigmaPluginGuard. */
+  pluginToken: string;
 }
 
 export interface RequestOptions {
@@ -27,8 +28,7 @@ export class ApiClient {
   constructor(config: ApiClientConfig) {
     this.config = {
       baseUrl: config.baseUrl.replace(/\/+$/, ''),
-      clientId: config.clientId || 'figma-plugin',
-      clientSecret: config.clientSecret || '',
+      pluginToken: config.pluginToken || '',
     };
   }
 
@@ -45,18 +45,17 @@ export class ApiClient {
   }
 
   public hasValidCredentials(): boolean {
-    return Boolean(this.config.baseUrl && this.config.clientSecret.trim().length > 0);
+    return Boolean(this.config.baseUrl && this.config.pluginToken.trim().length > 0);
   }
 
   private buildHeaders(
     customHeaders?: Record<string, string>,
     isFormData: boolean = false
   ): Record<string, string> {
-    // Backend only verifies x-client-secret (HMAC signing was removed from
-    // UnifiedAuthGuard) — send it on every request, JSON or multipart.
+    // Gui x-plugin-token tren moi request (JSON va multipart).
+    // FigmaPluginGuard tren NestJS doc header nay de xac thuc.
     const headers: Record<string, string> = {
-      'x-client-id': this.config.clientId,
-      'x-client-secret': this.config.clientSecret,
+      'x-plugin-token': this.config.pluginToken,
       'ngrok-skip-browser-warning': 'true',
       ...customHeaders,
     };
@@ -79,7 +78,7 @@ export class ApiClient {
       throw new ApiError(
         0,
         'NO_SECRET',
-        'Authentication not configured. Please enter your Client Secret in Settings.'
+        'Authentication not configured. Please enter your Plugin Token in Settings.'
       );
     }
 

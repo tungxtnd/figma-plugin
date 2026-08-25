@@ -36,7 +36,7 @@ function uuidv4() {
 function App() {
   const [activeTab, setActiveTab] = React.useState<'SYNC' | 'RENDERER' | 'SETTINGS'>('SYNC');
   const [backendUrl, setBackendUrl] = React.useState('https://unrepined-min-unexultantly.ngrok-free.dev/api');
-  const [clientSecret, setClientSecret] = React.useState('');
+  const [pluginToken, setPluginToken] = React.useState('');
   const [showSecret, setShowSecret] = React.useState(false);
   const [logs, setLogs] = React.useState<LogItem[]>([]);
 
@@ -48,7 +48,7 @@ function App() {
   const [progress, setProgress] = React.useState<string>('');
   const [currentJobId, setCurrentJobId] = React.useState<string | null>(null);
 
-  const apiClientRef = React.useRef(new ApiClient({ baseUrl: backendUrl, clientId: 'figma-plugin', clientSecret }));
+  const apiClientRef = React.useRef(new ApiClient({ baseUrl: backendUrl, pluginToken }));
 
 
   const addLog = React.useCallback((message: string, status: LogItem['status'] = 'info') => {
@@ -93,15 +93,15 @@ function App() {
       if (msg.type === 'config-loaded') {
         const { config } = msg;
         setBackendUrl(config.backendUrl || 'https://unrepined-min-unexultantly.ngrok-free.dev/api');
-        setClientSecret(config.clientSecret || '');
+        setPluginToken(config.pluginToken || '');
 
         apiClientRef.current.updateConfig({
           baseUrl: config.backendUrl || 'https://unrepined-min-unexultantly.ngrok-free.dev/api',
-          clientSecret: config.clientSecret || '',
+          pluginToken: config.pluginToken || '',
         });
 
-        if (!config.clientSecret || config.clientSecret.trim().length === 0) {
-          addLog('[Auth Warning] Authentication not configured. Please enter Client Secret in Settings.', 'warning');
+        if (!config.pluginToken || config.pluginToken.trim().length === 0) {
+          addLog('[Auth Warning] Authentication not configured. Please enter Plugin Token in Settings.', 'warning');
         } else {
           addLog('🔑 M2M HMAC Auth initialized (SHA-256 Signature Enabled).', 'info');
         }
@@ -332,7 +332,7 @@ function App() {
         }
       } catch (err) {
         if (err instanceof ApiError && err.code === 'NO_SECRET') {
-          addLog('[Auth Warning] Polling paused. Please configure Client Secret in Settings.', 'warning');
+          addLog('[Auth Warning] Polling paused. Please configure Plugin Token in Settings.', 'warning');
         } else if (err instanceof ApiError) {
           addLog(`[Polling Error] ${err.status} ${err.code}: ${err.message}`, 'error');
         } else {
@@ -354,7 +354,7 @@ function App() {
 
   const handleScan = () => {
     if (!apiClientRef.current.hasValidCredentials()) {
-      addLog('[Auth Warning] Authentication not configured. Please enter Client Secret in Settings.', 'warning');
+      addLog('[Auth Warning] Authentication not configured. Please enter Plugin Token in Settings.', 'warning');
       setActiveTab('SETTINGS');
       return;
     }
@@ -365,7 +365,7 @@ function App() {
 
   const handleSync = () => {
     if (!apiClientRef.current.hasValidCredentials()) {
-      addLog('[Auth Warning] Authentication not configured. Please enter Client Secret in Settings.', 'warning');
+      addLog('[Auth Warning] Authentication not configured. Please enter Plugin Token in Settings.', 'warning');
       setActiveTab('SETTINGS');
       return;
     }
@@ -387,11 +387,11 @@ function App() {
   const handleSaveSettings = () => {
     apiClientRef.current.updateConfig({
       baseUrl: backendUrl,
-      clientSecret: clientSecret,
+      pluginToken: pluginToken,
     });
     sendToSandbox({
       type: 'save-config',
-      config: { backendUrl, clientSecret }
+      config: { backendUrl, pluginToken }
     });
   };
 
@@ -402,7 +402,7 @@ function App() {
           <div style={styles.logoDot}></div>
           <span style={styles.logoText}>Figma Design Sync v2</span>
         </div>
-        {!clientSecret && (
+        {!pluginToken && (
           <span style={{ fontSize: '11px', color: '#F59E0B', fontWeight: 'bold' }}>⚠️ Auth Unconfigured</span>
         )}
       </div>
@@ -487,14 +487,14 @@ function App() {
           </div>
 
           <div style={{ ...styles.inputGroup, marginTop: '12px' }}>
-            <label style={styles.label}>Client Secret (x-client-secret)</label>
+            <label style={styles.label}>Plugin Token (x-plugin-token)</label>
             <div style={{ display: 'flex', gap: '6px' }}>
               <input
                 style={{ ...styles.input, flex: 1 }}
                 type={showSecret ? 'text' : 'password'}
-                value={clientSecret}
-                onChange={e => setClientSecret(e.target.value)}
-                placeholder="Paste sk_figma_secret_key here..."
+                value={pluginToken}
+                onChange={e => setPluginToken(e.target.value)}
+                placeholder="Paste token from secrets/plugin-tokens/<name>_current..."
               />
               <button
                 type="button"

@@ -173,7 +173,7 @@ export interface RenderResult {
 
 export interface AuthConfig {
   backendUrl: string;
-  clientSecret: string;
+  pluginToken: string;
 }
 
 // ─── Plugin Message Protocol ──────────────────────────────────────────────────

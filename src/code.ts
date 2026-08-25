@@ -100,13 +100,13 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
         type: 'config-loaded',
         config: {
           backendUrl: savedUrl || 'http://localhost:3000/api',
-          clientSecret: savedSecret || '',
+          pluginToken: savedSecret || '',
         }
       });
     } catch (e) {
       sendToUi({
         type: 'config-loaded',
-        config: { backendUrl: 'http://localhost:3000/api', clientSecret: '' }
+        config: { backendUrl: 'http://localhost:3000/api', pluginToken: '' }
       });
     }
     return;
@@ -116,7 +116,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     try {
       const { config } = msg;
       await figma.clientStorage.setAsync('FIGMA_M2M_BACKEND_URL', config.backendUrl || 'http://localhost:3000/api');
-      await figma.clientStorage.setAsync('FIGMA_M2M_CLIENT_SECRET', config.clientSecret || '');
+      await figma.clientStorage.setAsync('FIGMA_M2M_CLIENT_SECRET', config.pluginToken || '');
       sendToUi({ type: 'log', message: '✅ Settings saved to Figma clientStorage.', status: 'success' });
       sendToUi({ type: 'config-loaded', config });
     } catch (e) {
