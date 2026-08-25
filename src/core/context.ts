@@ -5,7 +5,7 @@
  * Ref: design_engine_execution_specification.md §1 (Pipeline)
  */
 
-import { DesignIntent, Component, HeadingComponent, BodyComponent, ListComponent, StatisticComponent, QuoteComponent, BadgeComponent, RenderConstraints } from '../types';
+import { DesignIntent, Component, HeadingComponent, BodyComponent, ListComponent, StatisticComponent, RenderConstraints } from '../types';
 import { ThemeTokenSet } from '../engines/theme-engine';
 
 // ─── Asset Types ──────────────────────────────────────────────────────────────
@@ -63,12 +63,4 @@ export function getListComponents(intent: DesignIntent): ListComponent[] {
 
 export function getStatistics(intent: DesignIntent): StatisticComponent[] {
   return intent.content.filter((c): c is StatisticComponent => c.type === 'statistic');
-}
-
-export function getQuotes(intent: DesignIntent): QuoteComponent[] {
-  return intent.content.filter((c): c is QuoteComponent => c.type === 'quote');
-}
-
-export function getBadge(intent: DesignIntent): BadgeComponent | undefined {
-  return intent.content.find((c): c is BadgeComponent => c.type === 'badge');
 }

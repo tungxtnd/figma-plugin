@@ -55,26 +55,7 @@ export function normalizeTextCase(text: string): { result: string; fixed: boolea
   return { result: text, fixed: false };
 }
 
-// ─── 2. Font Enforcement (Override — Silent Fix) ──────────────────────────────
-
-/** Các font weight bị cấm — plugin sẽ map về Bold hoặc Regular */
-const FORBIDDEN_WEIGHTS = new Set(['SemiBold', 'Medium', 'Light', 'Thin', 'ExtraBold', 'Black']);
-const ALLOWED_FONT = 'Inter';
-
-export function enforceFont(fontFamily: string): { result: string; fixed: boolean } {
-  if (fontFamily === ALLOWED_FONT) return { result: fontFamily, fixed: false };
-  return { result: ALLOWED_FONT, fixed: true };
-}
-
-export function enforceWeight(weight: string): { result: 'Regular' | 'Bold'; fixed: boolean } {
-  if (weight === 'Regular' || weight === 'Bold') return { result: weight as 'Regular' | 'Bold', fixed: false };
-  // Map về Bold nếu bán đậm, về Regular nếu nhẹ hơn
-  const mappedToBold = new Set(['SemiBold', 'ExtraBold', 'Black', 'Medium']);
-  const result = mappedToBold.has(weight) ? 'Bold' : 'Regular';
-  return { result, fixed: true };
-}
-
-// ─── 3. size_level Validation ─────────────────────────────────────────────────
+// ─── 2. size_level Validation ─────────────────────────────────────────────────
 
 /** Map các alias cũ (như "large"/"medium") về enum chuẩn */
 const SIZE_LEVEL_ALIASES: Record<string, SizeLevel> = {
@@ -117,38 +98,7 @@ export function normalizeSizeLevel(
   };
 }
 
-// ─── 4. SVG Stroke Removal (Override — Figma node level) ─────────────────────
-
-/**
- * Xóa stroke khỏi node Figma (dùng sau khi insert SVG/Vector).
- * Gọi hàm này trên mọi VectorNode hoặc FrameNode dùng làm icon.
- */
-export function removeStroke(node: GeometryMixin & SceneNode): boolean {
-  if (node.strokes && node.strokes.length > 0) {
-    node.strokes = [];
-    return true;
-  }
-  return false;
-}
-
-/**
- * Xóa stroke đệ quy trên toàn bộ subtree (dùng cho các SVG group phức tạp).
- */
-export function removeStrokeRecursive(node: SceneNode): number {
-  let count = 0;
-  if ('strokes' in node && (node as any).strokes?.length > 0) {
-    (node as any).strokes = [];
-    count++;
-  }
-  if ('children' in node) {
-    for (const child of (node as ChildrenMixin).children) {
-      count += removeStrokeRecursive(child);
-    }
-  }
-  return count;
-}
-
-// ─── 5. Pre-flight Validation (Reject — Hard Limits) ─────────────────────────
+// ─── 3. Pre-flight Validation (Reject — Hard Limits) ─────────────────────────
 
 /**
  * Kiểm tra trước khi render (Bước 3 trong Pipeline).
@@ -191,7 +141,7 @@ export function preflightCheck(designIntent: {
   return { shouldAbort, violations };
 }
 
-// ─── 6. Content Sanitizer (Tổng hợp Override) ────────────────────────────────
+// ─── 4. Content Sanitizer (Tổng hợp Override) ────────────────────────────────
 
 export interface SanitizedContent {
   text: string;
