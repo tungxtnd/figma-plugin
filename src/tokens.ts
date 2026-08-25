@@ -110,18 +110,6 @@ export const LAYOUT = {
   },
 } as const;
 
-// ─── Decoration Tokens ────────────────────────────────────────────────────────
-
-export const DECORATION = {
-  OrbBlurRadius: 150,    // px — blur radius của ambient orb
-  OrbOpacity: 0.5,       // 50% opacity theo guideline
-  OrbColors: [COLOR.Accent.Blue, COLOR.Accent.Red], // Pool màu cho orb
-  OrbSize: {
-    Large: 500,   // px
-    Small: 400,   // px
-  },
-} as const;
-
 // ─── Fallback Asset Names ─────────────────────────────────────────────────────
 
 export const FALLBACK_ASSET: Record<string, string> = {

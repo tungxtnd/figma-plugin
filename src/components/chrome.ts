@@ -1,5 +1,4 @@
 import { LayoutContext } from '../core/context';
-import { DECORATION } from '../tokens';
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────
 
@@ -81,10 +80,4 @@ export async function createFooter(
 
   parent.appendChild(footerText);
   return footerText;
-}
-
-// ─── Ambient Orbs Decorator ───────────────────────────────────────────────────
-
-export function addAmbientOrbs(_slide: FrameNode, _context: LayoutContext): void {
-  // Đã gỡ bỏ: Ảnh background thiết kế đã có sẵn hiệu ứng blur orb.
 }

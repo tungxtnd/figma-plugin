@@ -11,7 +11,7 @@ import { resolveTheme } from '../engines/theme-engine';
 import { preflightCheck, sanitizeContentBlock, ConstraintViolation } from '../constraint-engine';
 import { getLayoutRenderer } from '../layouts/registry';
 import { calculateQualityScore } from '../engines/quality-engine';
-import { addAmbientOrbs, createLogo } from '../components/chrome';
+import { createLogo } from '../components/chrome';
 import { assetFallbackUsed, resetFallbackFlag } from '../components/image';
 import { CANVAS } from '../tokens';
 import { pickVariant } from '../engines/variant-engine';
@@ -181,9 +181,6 @@ export async function runRenderingPipeline(
   slide.paddingLeft = padding;
   slide.paddingRight = padding;
   slide.itemSpacing = spacing;
-
-  // Thêm ambient glow orbs đằng sau
-  addAmbientOrbs(slide, context);
 
   // Thêm Logo ở trên cùng nếu vị trí được cấu hình ở top-center
   if (logoPosition === 'top-center') {

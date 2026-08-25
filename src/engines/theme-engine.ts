@@ -17,8 +17,6 @@ export interface ThemeTokenSet {
   textMuted: { r: number; g: number; b: number };
   highlight: { r: number; g: number; b: number };
   cardBg: { r: number; g: number; b: number };
-  orbColors: Array<{ r: number; g: number; b: number }>;
-  logoVariant: 'dark' | 'light';  // Logo màu nào phù hợp với nền này
 }
 
 // ─── Theme Registry ───────────────────────────────────────────────────────────
@@ -31,8 +29,6 @@ const THEME_REGISTRY: Record<string, ThemeTokenSet> = {
     textMuted: COLOR.TextMuted,
     highlight: COLOR.Highlight,
     cardBg: COLOR.CardBg,
-    orbColors: [COLOR.Accent.Blue, COLOR.Accent.Red],
-    logoVariant: 'light',
   },
   light: {
     name: 'light',
@@ -41,8 +37,6 @@ const THEME_REGISTRY: Record<string, ThemeTokenSet> = {
     textMuted: { r: 0.4, g: 0.4, b: 0.4 },  // Gray-600
     highlight: COLOR.Highlight,
     cardBg: { r: 0.96, g: 0.96, b: 0.96 },  // Gray-100
-    orbColors: [COLOR.Accent.Green, COLOR.Accent.Blue],
-    logoVariant: 'dark',
   },
 };
 

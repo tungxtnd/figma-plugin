@@ -19,11 +19,6 @@ const TOKENS = {
   },
 };
 
-// Component Library: 1. Ambient Glow Orbs
-function addAmbientOrbs(_slide: FrameNode) {
-  // Đã gỡ bỏ: Ảnh background đã có sẵn hiệu ứng blur.
-}
-
 // Component Library: 2. Brand Logo Component
 function createLogoComponent(parent: FrameNode, theme: string, position: string, logoBytes?: Uint8Array): FrameNode {
   const logoFrame = figma.createFrame();
@@ -568,8 +563,6 @@ export async function generateProgrammaticSlide(
   slide.paddingLeft = TOKENS.padding;
   slide.paddingRight = TOKENS.padding;
   slide.itemSpacing = TOKENS.spacing;
-
-  addAmbientOrbs(slide);
 
   let titleVal = renderedPayload.title || '';
   let bodyVal = renderedPayload.body || '';
