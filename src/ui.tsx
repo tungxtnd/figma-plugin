@@ -82,6 +82,18 @@ function App() {
   const sendToSandbox = (msg: PluginMessage) => parent.postMessage({ pluginMessage: msg }, '*');
 
   React.useEffect(() => {
+    // Không báo backend thì slide lỗi nằm mãi ở PENDING_RENDER và vòng poll lấy
+    // lại đúng slide đó sau 3 giây — lặp vô hạn, chặn mọi slide phía sau.
+    const reportRenderFailed = async (assetId: string, error: unknown) => {
+      const message = String((error as Error)?.message || error || 'Unknown render error').slice(0, 2000);
+      try {
+        await apiClientRef.current.post(`/designs/${assetId}/render-failed`, { error: message });
+        addLog(`⚠️ Slide ${assetId} lỗi, đã báo backend và bỏ qua: ${message}`, 'warning');
+      } catch (reportErr) {
+        handleApiError(reportErr, `Không báo được lỗi render cho ${assetId}`);
+      }
+    };
+
     window.onmessage = async (event) => {
       const msg: PluginMessage = event.data.pluginMessage;
       if (!msg) return;
@@ -129,7 +141,7 @@ function App() {
 
         try {
           // 1. Fetch remote expected designs via ApiClient
-          const jsonRes = await apiClientRef.current.get<{ data: any[] }>(`/content/posts/${activePostId}/designs`);
+          const jsonRes = await apiClientRef.current.get<{ data: any[] }>(`/posts/${activePostId}/designs`);
           const remoteDesigns = jsonRes?.data || [];
 
           const remoteMap = new Map((remoteDesigns || []).map((d: any) => [d.assetId, d]));
@@ -195,12 +207,15 @@ function App() {
 
           form.append('changes', JSON.stringify(payload));
 
+          let totalBytes = 0;
           for (const exp of exports) {
             const blob = new Blob([exp.bytes], { type: 'image/png' });
             form.append(`slide_${exp.nodeId}`, blob, `${exp.nodeId}.png`);
+            totalBytes += exp.bytes.length;
           }
+          addLog(`Uploading ${exports.length} frame(s) to sync-canvas... (${(totalBytes / 1024).toFixed(0)} KB total)`, 'info');
 
-          const jsonRes = await apiClientRef.current.postFormData<{ results: any[] }>(`/content/posts/${postId}/sync-canvas`, form, {
+          const jsonRes = await apiClientRef.current.postFormData<{ results: any[] }>(`/posts/${postId}/sync-canvas`, form, {
             headers: { 'X-Transaction-ID': txId }
           });
 
@@ -241,7 +256,7 @@ function App() {
 
       if (msg.type === 'job-rendered') {
         const { assetId, bytes, fileName, renderResult, rawFingerprint } = msg as any;
-        addLog(`Uploading render result for ${assetId}...`, 'info');
+        addLog(`Uploading render result for ${assetId}... (${(bytes.length / 1024).toFixed(0)} KB)`, 'info');
 
         try {
           const hash = rawFingerprint ? SparkMD5.hash(rawFingerprint) : '';
@@ -268,12 +283,15 @@ function App() {
           addLog(`✅ Successfully uploaded design ${assetId}`, 'success');
         } catch (err) {
           handleApiError(err, `Failed to upload design ${assetId}`);
+          await reportRenderFailed(assetId, err);
         } finally {
           setCurrentJobId(null);
         }
       }
 
       if (msg.type === 'job-failed') {
+        const { assetId, error } = msg as any;
+        await reportRenderFailed(assetId, error);
         setCurrentJobId(null);
       }
     };
@@ -297,8 +315,12 @@ function App() {
       }
 
       try {
-        const jsonRes = await apiClientRef.current.get<{ data: any[] }>('/designs/pending');
-        const data = jsonRes?.data;
+        const jsonRes = await apiClientRef.current.get<{ data: any }>('/designs/pending');
+        // Backend hiện bọc envelope 2 lớp cho endpoint này (controller bọc lại
+        // kết quả đã-là-envelope từ service) — mảng thật nằm ở data.data, không
+        // phải data. Tự nhận diện cả 2 dạng để không vỡ nếu backend được sửa sau.
+        const inner = jsonRes?.data;
+        const data: any[] = Array.isArray(inner) ? inner : (inner?.data || []);
         if (data && data.length > 0) {
           const job = data[0];
 

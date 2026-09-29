@@ -1,0 +1,30 @@
+{
+    "name":  "Figma Design Engine MVP",
+    "id":  "figma-design-engine-mvp",
+    "api":  "1.0.0",
+    "main":  "dist/code.js",
+    "ui":  "dist/ui.html",
+    "editorType":  [
+                       "figma"
+                   ],
+    "networkAccess":  {
+                          "allowedDomains":  [
+                                                 "https://drive.google.com",
+                                                 "https://res.cloudinary.com",
+                                                 "https://images.pexels.com",
+                                                 "https://pixabay.com",
+                                                 "https://images.unsplash.com",
+                                                 "https://loremflickr.com",
+                                                 "https://unrepined-min-unexultantly.ngrok-free.dev",
+                                                 "https://prod-files-secure.s3.us-west-2.amazonaws.com",
+                                                 "https://staging.ipactechnology.com"
+                                             ],
+                          "devAllowedDomains":  [
+                                                    "https://unrepined-min-unexultantly.ngrok-free.dev",
+                                                    "http://localhost:3000",
+                                                    "http://localhost:5678",
+                                                    "https://staging.ipactechnology.com"
+                                                ],
+                          "reasoning":  "This plugin fetches design tasks from the NestJS backend and n8n webhooks, downloads images, and uploads the generated design assets."
+                      }
+}

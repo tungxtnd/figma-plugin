@@ -28,7 +28,7 @@ export class ApiClient {
   constructor(config: ApiClientConfig) {
     this.config = {
       baseUrl: config.baseUrl.replace(/\/+$/, ''),
-      pluginToken: config.pluginToken || '',
+      pluginToken: (config.pluginToken || '').trim(),
     };
   }
 
@@ -37,6 +37,7 @@ export class ApiClient {
       ...this.config,
       ...partialConfig,
       baseUrl: (partialConfig.baseUrl !== undefined ? partialConfig.baseUrl : this.config.baseUrl).replace(/\/+$/, ''),
+      pluginToken: (partialConfig.pluginToken !== undefined ? partialConfig.pluginToken : this.config.pluginToken).trim(),
     };
   }
 
@@ -56,7 +57,6 @@ export class ApiClient {
     // FigmaPluginGuard tren NestJS doc header nay de xac thuc.
     const headers: Record<string, string> = {
       'x-plugin-token': this.config.pluginToken,
-      'ngrok-skip-browser-warning': 'true',
       ...customHeaders,
     };
 
@@ -153,6 +153,6 @@ export class ApiClient {
   }
 
   public async postFormData<T>(path: string, formData: FormData, options?: RequestOptions): Promise<T> {
-    return this.request<T>(path, 'POST', formData, { timeoutMs: 60000, ...options }, true);
+    return this.request<T>(path, 'POST', formData, { timeoutMs: 180000, ...options }, true);
   }
 }
