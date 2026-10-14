@@ -203,7 +203,14 @@ export type PluginMessage =
   | { type: 'log'; message: string; status: 'info' | 'success' | 'error' | 'warning' }
   // Phase 9: Sync Manager Messages
   | { type: 'scan-canvas'; postId: string }
-  | { type: 'canvas-scanned'; slides: SyncSlide[] }
+  | {
+      type: 'canvas-scanned';
+      slides: SyncSlide[];
+      /** Post ID dùng để lọc frame (nhập tay, hoặc tự nhận từ metadata). */
+      postId?: string;
+      /** Số frame chưa gắn bài, không được chọn → bị bỏ qua (plans 09 §4.8). */
+      skippedUnbound: number;
+    }
   | { type: 'export-frames'; nodeIds: string[] }
   | { type: 'frames-exported'; exports: { nodeId: string; bytes: Uint8Array }[] }
   | { type: 'commit-rendered-fingerprint'; assetId: string; figmaNodeId: string; fingerprint: string }
@@ -211,15 +218,19 @@ export type PluginMessage =
 
 // ─── Phase 9: Canvas Sync Types ─────────────────────────────────────────────
 
+/** Một frame đã Scan — `fingerprint` là chuỗi thô, UI thread mới hash MD5. */
 export interface SyncSlide {
   figmaNodeId: string;
   pluginAssetId?: string; // from setPluginData
+  pluginPostId?: string;
   version?: number;
   orderIndex: number;
   fingerprint: string;
+  /** Tên frame trên Figma — chỉ để hiển thị. */
+  name?: string;
 }
 
-export type DiffAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'UNCHANGED';
+export type DiffAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'REORDER' | 'UNCHANGED';
 
 export interface DiffResult {
   figmaNodeId: string;
@@ -228,8 +239,30 @@ export interface DiffResult {
   orderIndex: number;
   fingerprint: string;
   action: DiffAction;
+  /** Cảnh báo cho log (vd đã tự chữa version lệch) — không gửi lên server. */
+  warning?: string;
+  /** Tên frame (hiển thị). */
+  name?: string;
+  /** Vị trí phía server trước lượt này (hiển thị REORDER/DELETE). */
+  fromIndex?: number;
+  /**
+   * Nội dung frame đã khớp server nhưng metadata trên frame giữ version cũ (vd lượt
+   * sync trước không ghi được metadata) → ghi lại metadata ngay sau Scan.
+   */
+  healMetadata?: boolean;
+}
+
+/** Một mục `changes` gửi `POST /posts/:id/sync-canvas` — hợp đồng với backend. */
+export interface SyncChange {
+  figmaNodeId: string;
+  assetId?: string;
+  version: number;
+  orderIndex: number;
+  fingerprint: string;
+  action: Exclude<DiffAction, 'UNCHANGED'>;
+  fileFieldName?: string;
 }
 
 export interface ReconciliationPayload {
-  changes: DiffResult[];
+  changes: SyncChange[];
 }

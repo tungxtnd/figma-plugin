@@ -1,4 +1,5 @@
-import { PluginMessage, DesignJob, DesignIntent, RenderResult } from './types';
+import { PluginMessage, DesignJob, DesignIntent, RenderResult, SyncSlide } from './types';
+import { selectPostFrames, FrameMetadata } from './services/select-post-frames';
 import { preflightCheck, ConstraintViolation } from './constraint-engine';
 import { runRenderingPipeline } from './core/pipeline';
 import { generateProgrammaticSlide } from './legacy/legacy-renderer';
@@ -302,34 +303,31 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     const { postId } = msg as any;
     sendToUi({ type: 'log', message: `Scanning canvas for Post ${postId}...`, status: 'info' });
 
-    const slides: any[] = [];
-    const frames = figma.currentPage.children.filter(n => n.type === 'FRAME') as FrameNode[];
-
-    for (let i = 0; i < frames.length; i++) {
-      const frame = frames[i];
+    const frames = (figma.currentPage.children.filter(n => n.type === 'FRAME') as FrameNode[]).map(frame => {
       // Read pluginData metadata
       const rawData = frame.getPluginData('figma_reconciliation_metadata');
-      let metadata: any = {};
+      let metadata: FrameMetadata | null = null;
       if (rawData) {
         try { metadata = JSON.parse(rawData); } catch (e) { }
       }
+      return { id: frame.id, node: frame, metadata };
+    });
 
-      // Ensure this frame belongs to the current post, or is a newly created frame (no metadata)
-      if (postId && metadata.postId && metadata.postId !== postId) continue;
+    // Chỉ frame thuộc bài; frame mới phải được CHỌN lúc Scan (plans 09 §4.8).
+    const selectedIds = figma.currentPage.selection.map(n => n.id);
+    const picked = selectPostFrames(frames, postId || '', selectedIds);
 
-      const fingerprintPayload = serializeNode(frame);
+    const slides: SyncSlide[] = picked.frames.map(frame => ({
+      figmaNodeId: frame.id,
+      pluginAssetId: frame.metadata?.assetId,
+      pluginPostId: frame.metadata?.postId,
+      version: frame.metadata?.version,
+      orderIndex: frame.orderIndex, // Thứ tự canvas trong các frame ĐÃ LỌC
+      name: frame.node.name,
+      fingerprint: serializeNode(frame.node) // UI thread will MD5 hash this
+    }));
 
-      slides.push({
-        figmaNodeId: frame.id,
-        pluginAssetId: metadata.assetId,
-        pluginPostId: metadata.postId,
-        version: metadata.version,
-        orderIndex: i, // Based on canvas order
-        fingerprint: fingerprintPayload // UI thread will MD5 hash this
-      });
-    }
-
-    sendToUi({ type: 'canvas-scanned', slides } as any);
+    sendToUi({ type: 'canvas-scanned', slides, postId: picked.postId, skippedUnbound: picked.skippedUnbound });
   }
 
   if (msg.type === 'export-frames') {

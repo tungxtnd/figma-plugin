@@ -3,6 +3,27 @@ import { createRoot } from 'react-dom/client';
 import { PluginMessage, DesignJob, SyncSlide, DiffResult, ReconciliationPayload } from './types';
 import SparkMD5 from 'spark-md5';
 import { ApiClient, ApiError } from './services/api-client';
+import {
+  computeCanvasDiff,
+  buildSyncChanges,
+  buildMetadataUpdates,
+  fileFieldNameOf,
+  needsExport,
+  extractSyncResults,
+  adoptRemoteVersions,
+  RemoteDesign,
+} from './services/canvas-diff';
+
+/** Nhãn một dòng Diff Report: vị trí THẬT của frame trong bài, không phải số dòng. */
+function diffLabel(d: DiffResult): string {
+  const name = d.name ? ` · ${d.name}` : '';
+  if (d.action === 'DELETE') {
+    return `Đã xoá — từng ở vị trí ${(d.fromIndex ?? 0) + 1} (${d.figmaNodeId})`;
+  }
+  const moved =
+    d.fromIndex !== undefined && d.fromIndex !== d.orderIndex ? ` (từ vị trí ${d.fromIndex + 1})` : '';
+  return `Vị trí ${d.orderIndex + 1}${moved}${name}`;
+}
 
 const assetCache = new Map<string, Uint8Array>();
 
@@ -94,6 +115,54 @@ function App() {
       }
     };
 
+    // Gửi một lượt sync-canvas với ảnh đã export; trả `results` của server.
+    const uploadSync = async (diffs: DiffResult[], exports: { nodeId: string; bytes: Uint8Array }[]) => {
+      const form = new FormData();
+      // fileFieldName chỉ cho CREATE/UPDATE — REORDER/DELETE không có ảnh.
+      const payload: ReconciliationPayload = { changes: buildSyncChanges(diffs) };
+      form.append('changes', JSON.stringify(payload));
+
+      let totalBytes = 0;
+      for (const exp of exports) {
+        const blob = new Blob([exp.bytes as BlobPart], { type: 'image/png' });
+        form.append(fileFieldNameOf(exp.nodeId), blob, `${exp.nodeId}.png`);
+        totalBytes += exp.bytes.length;
+      }
+      addLog(`Uploading ${exports.length} frame(s) to sync-canvas... (${(totalBytes / 1024).toFixed(0)} KB total)`, 'info');
+
+      const jsonRes = await apiClientRef.current.postFormData<unknown>(`/posts/${postId}/sync-canvas`, form, {
+        headers: { 'X-Transaction-ID': uuidv4() }
+      });
+      return extractSyncResults(jsonRes);
+    };
+
+    // 409: frame gửi version cũ hơn server. Gần như luôn do metadata trên frame
+    // không được ghi ở lượt sync trước (pluginData nằm trong file Figma nên mọi
+    // người cùng file thấy chung version). Nhận version server cho frame và trả
+    // về diff mới để gửi lại; không có frame nào lệch → null (xung đột thật).
+    const adoptServerVersions = async (diffs: DiffResult[]): Promise<DiffResult[] | null> => {
+      const jsonRes = await apiClientRef.current.get<{ data: RemoteDesign[] }>(`/posts/${postId}/designs`);
+      const remoteDesigns = jsonRes?.data || [];
+      const { diffs: next, adopted } = adoptRemoteVersions(diffs, remoteDesigns);
+      if (adopted.length === 0) return null;
+
+      const remoteMap = new Map(remoteDesigns.map(d => [d.assetId, d]));
+      sendToSandbox({
+        type: 'commit-metadata',
+        updates: adopted.map(d => ({
+          figmaNodeId: d.figmaNodeId,
+          postId,
+          assetId: d.assetId,
+          version: d.version,
+          fingerprint: remoteMap.get(d.assetId!)?.fingerprint || '',
+        })),
+      });
+      for (const d of adopted) {
+        addLog(`${d.name || d.figmaNodeId}: frame ghi v${d.fromVersion}, server đang v${d.version} — cập nhật version và gửi lại.`, 'info');
+      }
+      return next;
+    };
+
     window.onmessage = async (event) => {
       const msg: PluginMessage = event.data.pluginMessage;
       if (!msg) return;
@@ -121,17 +190,17 @@ function App() {
 
       if (msg.type === 'canvas-scanned') {
         setIsScanning(false);
-        const { slides } = msg as any;
+        const { slides, skippedUnbound } = msg;
         addLog(`Canvas scanned. Found ${slides.length} slides. Processing fingerprints...`, 'info');
+        if (skippedUnbound > 0) {
+          addLog(`Bỏ qua ${skippedUnbound} frame chưa gắn bài — chọn frame rồi Scan để thêm`, 'warning');
+        }
 
         let activePostId = postId;
-        if (!activePostId && slides.length > 0) {
-          const slideWithPost = slides.find((s: any) => s.pluginPostId);
-          if (slideWithPost) {
-            activePostId = slideWithPost.pluginPostId;
-            setPostId(activePostId);
-            addLog(`Auto-detected Target Post ID: ${activePostId}`, 'success');
-          }
+        if (!activePostId && msg.postId) {
+          activePostId = msg.postId;
+          setPostId(activePostId);
+          addLog(`Auto-detected Target Post ID: ${activePostId}`, 'success');
         }
 
         if (!activePostId) {
@@ -141,51 +210,39 @@ function App() {
 
         try {
           // 1. Fetch remote expected designs via ApiClient
-          const jsonRes = await apiClientRef.current.get<{ data: any[] }>(`/posts/${activePostId}/designs`);
+          const jsonRes = await apiClientRef.current.get<{ data: RemoteDesign[] }>(`/posts/${activePostId}/designs`);
           const remoteDesigns = jsonRes?.data || [];
 
-          const remoteMap = new Map((remoteDesigns || []).map((d: any) => [d.assetId, d]));
-          const diffs: DiffResult[] = [];
-
-          for (const slide of slides) {
-            // Hash the serialized payload
-            const hash = SparkMD5.hash(slide.fingerprint);
-            let action: 'CREATE' | 'UPDATE' | 'UNCHANGED' = 'CREATE';
-
-            if (slide.pluginAssetId && remoteMap.has(slide.pluginAssetId)) {
-              const remote = remoteMap.get(slide.pluginAssetId);
-              if (remote.fingerprint === hash) {
-                action = 'UNCHANGED';
-              } else {
-                action = 'UPDATE';
-              }
-              remoteMap.delete(slide.pluginAssetId);
-            }
-
-            diffs.push({
-              figmaNodeId: slide.figmaNodeId,
-              assetId: slide.pluginAssetId,
-              version: slide.version || 1,
-              orderIndex: slide.orderIndex,
-              fingerprint: hash,
-              action
-            });
+          // 2. Diff thuần (plans 09 §4.6–4.7): CREATE/UPDATE/REORDER/DELETE.
+          const diffs = computeCanvasDiff(slides, remoteDesigns, raw => SparkMD5.hash(raw));
+          for (const d of diffs) {
+            if (d.warning) addLog(`⚠️ ${d.warning}`, 'warning');
           }
 
-          // 2. Identify deleted designs (present in remoteDesigns but missing from figma canvas)
-          for (const [assetId, remote] of remoteMap.entries()) {
-            diffs.push({
-              figmaNodeId: remote.figmaNodeId || '',
-              assetId: assetId,
-              version: remote.version || 1,
-              orderIndex: -1,
-              fingerprint: remote.fingerprint || '',
-              action: 'DELETE'
+          // Frame đã khớp server nhưng metadata còn version cũ → ghi lại ngay,
+          // không thì lần sửa sau gửi version cũ và bị 409.
+          const heal = diffs.filter(d => d.healMetadata && d.assetId);
+          if (heal.length > 0) {
+            sendToSandbox({
+              type: 'commit-metadata',
+              updates: heal.map(d => ({
+                figmaNodeId: d.figmaNodeId,
+                postId: activePostId,
+                assetId: d.assetId,
+                version: d.version,
+                fingerprint: d.fingerprint,
+              })),
             });
+            addLog(`Đã cập nhật metadata cho ${heal.length} frame bị lệch version (nội dung đã khớp server).`, 'info');
           }
 
           setDiffResults(diffs);
-          addLog(`Diff generated: ${diffs.filter(d => d.action !== 'UNCHANGED').length} changes detected.`, 'success');
+          const count = (a: DiffResult['action']) => diffs.filter(d => d.action === a).length;
+          addLog(
+            `Diff generated: ${diffs.filter(d => d.action !== 'UNCHANGED').length} changes detected ` +
+            `(create ${count('CREATE')}, update ${count('UPDATE')}, reorder ${count('REORDER')}, delete ${count('DELETE')}).`,
+            'success'
+          );
         } catch (err) {
           handleApiError(err, 'Failed to generate diff');
         }
@@ -195,48 +252,28 @@ function App() {
         const { exports } = msg as any;
         setProgress('Uploading to NestJS...');
 
+        let diffs = diffResults;
         try {
-          const txId = uuidv4();
-          const form = new FormData();
-          const payload: ReconciliationPayload = {
-            changes: diffResults.filter(d => d.action !== 'UNCHANGED').map(d => ({
-              ...d,
-              fileFieldName: d.action === 'DELETE' ? undefined : `slide_${d.figmaNodeId}`
-            } as any))
-          };
-
-          form.append('changes', JSON.stringify(payload));
-
-          let totalBytes = 0;
-          for (const exp of exports) {
-            const blob = new Blob([exp.bytes], { type: 'image/png' });
-            form.append(`slide_${exp.nodeId}`, blob, `${exp.nodeId}.png`);
-            totalBytes += exp.bytes.length;
+          let results;
+          try {
+            results = await uploadSync(diffs, exports);
+          } catch (err) {
+            // 409 → nhận version server rồi gửi lại ĐÚNG MỘT lần, dùng lại ảnh đã export.
+            // Lần hai vẫn 409 thì là xung đột thật, báo lỗi như thường.
+            if (!(err instanceof ApiError && err.status === 409)) throw err;
+            const adopted = await adoptServerVersions(diffs);
+            if (!adopted) throw err;
+            diffs = adopted;
+            results = await uploadSync(diffs, exports);
           }
-          addLog(`Uploading ${exports.length} frame(s) to sync-canvas... (${(totalBytes / 1024).toFixed(0)} KB total)`, 'info');
-
-          const jsonRes = await apiClientRef.current.postFormData<{ results: any[] }>(`/posts/${postId}/sync-canvas`, form, {
-            headers: { 'X-Transaction-ID': txId }
-          });
-
-          const results = jsonRes?.results || [];
 
           addLog('✅ Sync completed successfully!', 'success');
 
-          // Commit metadata back to nodes (skip deleted ones)
-          const updates = diffResults
-            .filter(d => d.action !== 'UNCHANGED' && d.action !== 'DELETE')
-            .map(d => {
-              const serverResult = results.find((r: any) => r.figmaNodeId === d.figmaNodeId);
-              const realAssetId = serverResult ? serverResult.assetId : (d.assetId || uuidv4());
-              return {
-                figmaNodeId: d.figmaNodeId,
-                postId,
-                assetId: realAssetId,
-                version: (d.version || 0) + 1,
-                fingerprint: d.fingerprint
-              };
-            });
+          // Ghi metadata ngược vào frame — version lấy từ server, không tự cộng (lỗi A).
+          const { updates, missing } = buildMetadataUpdates(diffs, results, postId);
+          if (missing.length > 0) {
+            addLog(`Server không trả kết quả cho ${missing.length} frame (${missing.join(', ')}) — không ghi metadata, Scan lại để kiểm.`, 'error');
+          }
 
           if (updates.length > 0) {
             sendToSandbox({
@@ -245,7 +282,7 @@ function App() {
             } as any);
           }
 
-          setDiffResults(prevDiffs => prevDiffs.filter(d => d.action !== 'DELETE').map(d => ({ ...d, action: 'UNCHANGED' })));
+          setDiffResults(diffs.filter(d => d.action !== 'DELETE').map(d => ({ ...d, action: 'UNCHANGED' })));
         } catch (uploadErr) {
           handleApiError(uploadErr, 'Upload failed');
         } finally {
@@ -394,7 +431,8 @@ function App() {
     const hasChanges = diffResults.some(d => d.action !== 'UNCHANGED');
     if (!hasChanges) return addLog('No changes to sync.', 'warning');
 
-    const toExport = diffResults.filter(d => d.action !== 'UNCHANGED' && d.action !== 'DELETE');
+    // Chỉ CREATE/UPDATE cần ảnh — REORDER không export PNG (plans 09 §4.7).
+    const toExport = diffResults.filter(needsExport);
 
     setIsSyncing(true);
     if (toExport.length > 0) {
@@ -451,6 +489,10 @@ function App() {
             </button>
           </div>
 
+          <div style={{ marginTop: '8px', fontSize: '11px', color: '#9CA3AF' }}>
+            Frame mới: chọn frame rồi bấm Scan. Frame chưa gắn bài mà không được chọn sẽ bị bỏ qua.
+          </div>
+
           {progress && <div style={{ marginTop: '12px', fontSize: '11px', color: '#10B981', textAlign: 'center' }}>{progress}</div>}
 
           {diffResults.length > 0 && (
@@ -459,8 +501,8 @@ function App() {
               <div style={{ marginTop: '8px', maxHeight: '150px', overflowY: 'auto' }}>
                 {diffResults.map((diff, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '6px', borderBottom: '1px solid #374151' }}>
-                    <span>Slide {i + 1} ({diff.figmaNodeId})</span>
-                    <span style={{ color: diff.action === 'CREATE' ? '#10B981' : diff.action === 'UPDATE' ? '#F59E0B' : '#6B7280' }}>
+                    <span title={diff.figmaNodeId}>{diffLabel(diff)}</span>
+                    <span style={{ color: diff.action === 'CREATE' ? '#10B981' : diff.action === 'UPDATE' ? '#F59E0B' : diff.action === 'REORDER' ? '#60A5FA' : diff.action === 'DELETE' ? '#EF4444' : '#6B7280' }}>
                       {diff.action}
                     </span>
                   </div>
