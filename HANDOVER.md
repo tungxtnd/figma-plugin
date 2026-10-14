@@ -1,8 +1,8 @@
 # Bàn giao Figma plugin (Design Engine)
 
 *Viết ngày 14-10-2026, khi Tùng bàn giao cho Khang (owner) và Nguyên (hỗ trợ designer).*
-*Plugin: nhánh `figma-plugin-cleanup-deadcode` (bản đang chạy thật). Backend: đối chiếu với
-`main` của Marketing-Automation-OS tại `1c2d8e6` (14-10-2026).*
+*Plugin: nhánh `main` (`dfb3d0f`, bản đang chạy thật). Backend: đối chiếu với `main` của
+Marketing-Automation-OS tại `1c2d8e6` (14-10-2026).*
 
 Plugin chạy trong **Figma Desktop** trên máy designer, làm hai việc cho Marketing Automation OS (MA):
 
@@ -19,11 +19,9 @@ chưa render").
 | | |
 |---|---|
 | Repo | `github.com/tungxtnd/figma-plugin` (**tài khoản cá nhân Tùng → cần chuyển sang tài khoản công ty**) |
-| Nhánh đang chạy thật | `figma-plugin-cleanup-deadcode`: hơn `main` 8 commit, đã push lên origin |
-| Trên máy Tùng | `D:\figma-plugin\.worktrees\cleanup-deadcode` |
-| ⚠️ Chưa commit | Phía plugin của **Figma sync ↔ Cloudinary** (plans V2.2/09 bên MA): sửa `src/code.ts`, `src/types.ts`, `src/ui.tsx`; file mới `src/services/canvas-diff.ts`, `src/services/select-post-frames.ts` và 2 file test. **Tùng phải commit + push trước khi rời đi** |
-| ⚠️ Lệch backend | Code chưa commit gọi `POST /designs/:id/render-failed`. Backend MA trên `main` **chưa có route này** (nằm ở nhánh `feat/linkedin-education-content` chưa merge). Khi render lỗi, plugin sẽ nhận 404 |
-| Nhánh khác | `main` của repo plugin **đã cũ** (`origin/main` chỉ có "Initial commit" ngày 24-07, không gửi token nên bị backend từ chối). `figma-plugin-shared-hmac-auth`: hướng HMAC cũ, đã bỏ. **Không dùng hai nhánh này.** Nên merge `figma-plugin-cleanup-deadcode` vào `main` sau khi commit phần dở |
+| Nhánh dùng | **`main`**: bản đang chạy thật, đã gồm phía plugin của **Figma sync ↔ Cloudinary** (plans V2.2/09 bên MA: `src/services/canvas-diff.ts`, `src/services/select-post-frames.ts` và test) |
+| ⚠️ Lệch backend | Plugin gọi `POST /designs/:id/render-failed`, nhưng backend MA trên `main` **chưa có route này** (nó nằm ở nhánh `feat/linkedin-education-content` chưa merge). Khi render lỗi, plugin nhận 404. Cần chọn: đưa route vào backend, hoặc bỏ lời gọi ở plugin |
+| Nhánh khác | `figma-plugin-cleanup-deadcode` đã nằm trọn trong `main`. `figma-plugin-shared-hmac-auth` là hướng HMAC cũ, đã bỏ. Cả hai **không dùng nữa**, xoá được |
 
 ## 2. Công nghệ và cấu trúc
 
@@ -41,8 +39,8 @@ src/code.ts (sandbox: đọc/ghi canvas Figma, vẽ, export PNG, lưu pluginData
 | `src/code.ts` | Nhận message: `process-job` (vẽ 1 slide), `scan-canvas`, `export-frames`, `commit-metadata`, `get-config`/`save-config` |
 | `src/ui.tsx` | 3 tab: **Manual Sync**, **Auto Renderer** (poll 3 giây/lần), **Settings** |
 | `src/services/api-client.ts` | Gọi backend, gắn header `x-plugin-token`; GET tự thử lại khi 429 hoặc lỗi mạng |
-| `src/services/canvas-diff.ts` | So canvas với server ra CREATE / UPDATE / REORDER / DELETE (chưa commit) |
-| `src/services/select-post-frames.ts` | Chỉ lấy frame thuộc bài; frame mới phải được **chọn** lúc Scan (chưa commit) |
+| `src/services/canvas-diff.ts` | So canvas với server ra CREATE / UPDATE / REORDER / DELETE |
+| `src/services/select-post-frames.ts` | Chỉ lấy frame thuộc bài; frame mới phải được **chọn** lúc Scan |
 | `src/core/pipeline.ts` | Bộ vẽ v1.0: `designIntent` → layout → component → chấm điểm chất lượng |
 | `src/layouts/{center,split,grid,timeline}/` | Các layout slide. Thêm layout mới thì khai trong `registry.ts` của nhóm đó |
 | `src/components/` | Tiêu đề, thân bài, ảnh, khung (chrome) |
@@ -108,7 +106,7 @@ Backend `main` mở đúng 5 route cho plugin, được chốt trong
 | `GET /posts/:id/designs` | ✅ | Manual Sync: lấy danh sách slide server đang giữ để so |
 | `POST /posts/:id/sync-canvas` | ✅ | Manual Sync: gửi ảnh các frame đổi (multipart, timeout 180 giây) |
 | `POST /designs/:id/callback` | ✅ | Plugin hiện **không gọi** |
-| `POST /designs/:id/render-failed` | ⛔ chưa có | Báo vẽ lỗi (code chưa commit). Hiện nhận 404 |
+| `POST /designs/:id/render-failed` | ⛔ chưa có | Báo vẽ lỗi. Hiện nhận 404 |
 
 Ảnh nền, logo, ảnh nội dung được tải thẳng từ Cloudinary hoặc Drive (không gắn token).
 
