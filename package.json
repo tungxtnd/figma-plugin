@@ -5,7 +5,8 @@
   "main": "dist/code.js",
   "scripts": {
     "build": "node esbuild.js",
-    "watch": "node esbuild.js --watch"
+    "watch": "node esbuild.js --watch",
+    "test": "jest"
   },
   "dependencies": {
     "react": "^18.2.0",
