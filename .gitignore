@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-preview/
+plugin.zip
 *.log
 .DS_Store
 .worktrees/

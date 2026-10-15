@@ -1,11 +1,14 @@
 {
   "name": "figma-design-engine-mvp",
   "version": "1.0.0",
-  "description": "Figma Plugin acting as Design Engine v2 MVP for Marketing Automation OS",
+  "description": "Figma plugin Capi Thiết kế: dựng slide cho những bài giao cho bạn, mỗi bài một Section",
   "main": "dist/code.js",
   "scripts": {
     "build": "node esbuild.js",
-    "watch": "node esbuild.js --watch"
+    "watch": "node esbuild.js --watch",
+    "preview": "node esbuild.js --preview",
+    "test": "jest",
+    "typecheck": "tsc -p tsconfig.sandbox.json && tsc -p tsconfig.ui.json"
   },
   "dependencies": {
     "react": "^18.2.0",

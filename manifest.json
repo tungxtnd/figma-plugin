@@ -1,32 +1,29 @@
 {
-    "name": "Figma Design Engine MVP",
-    "id": "figma-design-engine-mvp",
-    "api": "1.0.0",
-    "main": "dist/code.js",
-    "ui": "dist/ui.html",
-    "editorType": [
-        "figma"
+  "name": "Capi Thiết kế",
+  "id": "figma-design-engine-mvp",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "relaunchButtons": [
+    { "command": "open", "name": "Mở Capi Thiết kế" }
+  ],
+  "networkAccess": {
+    "allowedDomains": [
+      "https://automation.ipactechnology.com",
+      "https://staging.ipactechnology.com",
+      "https://res.cloudinary.com",
+      "https://drive.google.com",
+      "https://drive.usercontent.google.com",
+      "https://lh3.googleusercontent.com",
+      "https://fonts.googleapis.com",
+      "https://fonts.gstatic.com"
     ],
-    "networkAccess": {
-        "allowedDomains": [
-            "https://drive.google.com",
-            "https://res.cloudinary.com",
-            "https://images.pexels.com",
-            "https://pixabay.com",
-            "https://images.unsplash.com",
-            "https://loremflickr.com",
-            "https://unrepined-min-unexultantly.ngrok-free.dev",
-            "https://prod-files-secure.s3.us-west-2.amazonaws.com",
-            "https://automation.ipactechnology.com"
-        ],
-        "devAllowedDomains": [
-            "https://unrepined-min-unexultantly.ngrok-free.dev",
-            "http://localhost:3000",
-            "http://localhost:3001",
-            "http://localhost:5678",
-            "http://localhost:5173",
-            "https://automation.ipactechnology.com"
-        ],
-        "reasoning": "This plugin fetches design tasks from the NestJS backend and n8n webhooks, downloads images, and uploads the generated design assets."
-    }
+    "devAllowedDomains": [
+      "http://localhost:3000",
+      "http://localhost:3001"
+    ],
+    "reasoning": "Plugin nhận việc dựng slide từ máy chủ Capi, tải ảnh nền/logo/ảnh nội dung từ Cloudinary và Google Drive, gửi ảnh slide đã dựng lên máy chủ, và tải font giao diện từ Google Fonts."
+  }
 }

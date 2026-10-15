@@ -102,7 +102,7 @@ export async function runRenderingPipeline(
   
   if (preflight.shouldAbort) {
     const rejects = preflight.violations.filter(v => v.severity === 'reject').map(v => v.message);
-    throw new Error(`Pre-flight Reject: ${rejects.join(', ')}`);
+    throw new Error(`Nội dung vượt giới hạn của slide: ${rejects.join('; ')}`);
   }
   
   // Sanitize Content (Override / Case capitalization / Size Level Map)
@@ -157,21 +157,45 @@ export async function runRenderingPipeline(
   };
 
   // ── Step 3: Initialize Frame & Chrome elements ─────────────────────────────
-  await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
-  await figma.loadFontAsync({ family: 'Inter', style: 'Bold' });
-  
+  try {
+    await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+    await figma.loadFontAsync({ family: 'Inter', style: 'Bold' });
+  } catch (_) {
+    throw new Error('Máy này chưa có font Inter, Figma không nạp được.');
+  }
+
   const slide = figma.createFrame();
-  slide.name = `Slide_${job.orderIndex + 1}_IntentV1_${job.postId}`;
+  // Từ đây mọi lỗi đều phải dọn frame dở — trước đây lỗi ảnh nền/logo ném ra
+  // trước khối try và để lại frame rỗng trên canvas.
+  try {
+    return await renderInto(slide);
+  } catch (err) {
+    try {
+      slide.remove();
+    } catch (removeErr) {
+      console.warn('[Pipeline] Failed to remove corrupted slide node:', removeErr);
+    }
+    throw err;
+  }
+
+  async function renderInto(slide: FrameNode): Promise<PipelineResult> {
+  slide.name = `Slide ${job.orderIndex + 1}`;
   slide.resize(canvasW, canvasH);
-  
-  // Set Background
+
+  // Ảnh nền hỏng (định dạng lạ, quá lớn) thì dùng nền màu của theme và ghi cảnh báo.
+  let backgroundFailed = false;
   if (bgBytes) {
-    const bgImg = figma.createImage(bgBytes);
-    slide.fills = [{ type: 'IMAGE', scaleMode: 'FILL', imageHash: bgImg.hash }];
+    try {
+      const bgImg = figma.createImage(bgBytes);
+      slide.fills = [{ type: 'IMAGE', scaleMode: 'FILL', imageHash: bgImg.hash }];
+    } catch (_) {
+      backgroundFailed = true;
+      slide.fills = [{ type: 'SOLID', color: theme.background }];
+    }
   } else {
     slide.fills = [{ type: 'SOLID', color: theme.background }];
   }
-  
+
   // Slide outer layout setup
   slide.layoutMode = 'VERTICAL';
   slide.primaryAxisSizingMode = 'FIXED';
@@ -188,7 +212,7 @@ export async function runRenderingPipeline(
   }
 
   // ── Step 4: Variant Picker + Dispatch Render to Layout Registry ──────────
-  
+
   // Hỗ trợ V2 layoutCandidates nếu tồn tại (chỉ đọc thêm, fallback nếu không có)
   if (intent.layoutCandidates && Array.isArray(intent.layoutCandidates) && intent.layoutCandidates.length > 0) {
     const sortedCandidates = [...intent.layoutCandidates].sort((a, b) => b.score - a.score);
@@ -203,7 +227,7 @@ export async function runRenderingPipeline(
 
   const renderer = getLayoutRenderer(intent.layout_pattern);
   if (!renderer) {
-    throw new Error(`Unsupported layout pattern: "${intent.layout_pattern}"`);
+    throw new Error(`Plugin chưa hỗ trợ bố cục "${intent.layout_pattern}".`);
   }
 
   // Chọn variant tối ưu, tránh trùng với slide liền trước
@@ -223,48 +247,40 @@ export async function runRenderingPipeline(
   resetFallbackFlag(); // Reset indicator fallback trước khi chạy render
 
   // Chạy layout renderer với variant đã chọn
-  let renderMeta: any;
-  try {
-    renderMeta = await renderer(slide, context, chosenVariant);
-    applyRenderConstraints(slide, renderConstraints);
+  const renderMeta: any = await renderer(slide, context, chosenVariant);
+  applyRenderConstraints(slide, renderConstraints);
 
-    // Thêm Logo ở dưới cùng nếu vị trí được cấu hình ở bottom-center
-    if (logoPosition === 'bottom-center') {
-      await createLogo(slide, context);
-    }
-    
-    // ── Step 5: Post-flight & Quality Scoring ──────────────────────────────────
-    // Để Figma tính toán Auto-layout bounds
-    await new Promise((resolve) => setTimeout(resolve, 100));
+  // Thêm Logo ở dưới cùng nếu vị trí được cấu hình ở bottom-center
+  if (logoPosition === 'bottom-center') {
+    await createLogo(slide, context);
+  }
 
-    const preflightWarnings = allViolations
-      .filter(v => v.severity === 'warn')
-      .map(v => mapViolationToWarning(v.code));
+  // ── Step 5: Post-flight & Quality Scoring ──────────────────────────────────
+  // Để Figma tính toán Auto-layout bounds
+  await new Promise((resolve) => setTimeout(resolve, 100));
 
-    const renderResult = calculateQualityScore({
-      slideId: job.assetId,
-      jobId: job.runId || job.postId,
-      renderId: generateRenderId(job.assetId),
-      slide,
-      preflightWarnings,
-      assetFallbackUsed: assetFallbackUsed,
-      adaptiveResizeTriggered: !!(renderMeta && renderMeta.adaptiveTriggered),
-      fontScaleLevel: maxScaledLevel
-    });
+  const preflightWarnings = allViolations
+    .filter(v => v.severity === 'warn')
+    .map(v => mapViolationToWarning(v.code));
+  if (backgroundFailed) preflightWarnings.push(WarningCode.IMAGE_MISSING);
 
-    const finalVariant = renderMeta?.variantUsed ?? chosenVariant;
+  const renderResult = calculateQualityScore({
+    slideId: job.assetId,
+    jobId: job.runId || job.postId,
+    renderId: generateRenderId(job.assetId),
+    slide,
+    preflightWarnings,
+    assetFallbackUsed: assetFallbackUsed,
+    adaptiveResizeTriggered: !!(renderMeta && renderMeta.adaptiveTriggered),
+    fontScaleLevel: maxScaledLevel
+  });
 
-    return {
-      slideNode: slide,
-      renderResult,
-      variantUsed: finalVariant,
-    };
-  } catch (err) {
-    try {
-      slide.remove();
-    } catch (removeErr) {
-      console.warn('[Pipeline] Failed to remove corrupted slide node:', removeErr);
-    }
-    throw err;
+  const finalVariant = renderMeta?.variantUsed ?? chosenVariant;
+
+  return {
+    slideNode: slide,
+    renderResult,
+    variantUsed: finalVariant,
+  };
   }
 }

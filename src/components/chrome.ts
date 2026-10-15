@@ -20,12 +20,21 @@ export async function createLogo(
   logoFrame.fills = [];
   logoFrame.layoutAlign = 'STRETCH';
 
+  // Logo hỏng (định dạng lạ, quá lớn) thì dùng logo chữ, không làm vỡ cả slide.
+  let logoImage: Image | null = null;
   if (assets.logo) {
+    try {
+      logoImage = figma.createImage(assets.logo);
+    } catch (_) {
+      logoImage = null;
+    }
+  }
+
+  if (logoImage) {
     const logoNode = figma.createFrame();
     logoNode.name = 'Logo Image';
     logoNode.resize(200, 75);
-    const img = figma.createImage(assets.logo);
-    logoNode.fills = [{ type: 'IMAGE', scaleMode: 'FIT', imageHash: img.hash }];
+    logoNode.fills = [{ type: 'IMAGE', scaleMode: 'FIT', imageHash: logoImage.hash }];
     logoFrame.appendChild(logoNode);
   } else {
     // Text fallback

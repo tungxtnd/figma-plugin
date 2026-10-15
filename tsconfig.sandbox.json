@@ -1,7 +1,8 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["es2020"]
+    "lib": ["es2020"],
+    "noEmit": true
   },
-  "include": ["src/code.ts", "src/core/**/*", "src/components/**/*", "src/engines/**/*", "src/layouts/**/*", "src/types.ts", "src/tokens.ts", "src/constraint-engine.ts"]
+  "include": ["src/code.ts", "src/sandbox/**/*", "src/shared/**/*", "src/utils.ts", "src/core/**/*", "src/components/**/*", "src/engines/**/*", "src/layouts/**/*", "src/types.ts", "src/tokens.ts", "src/constraint-engine.ts"]
 }
